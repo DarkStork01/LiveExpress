@@ -1,91 +1,108 @@
 <!DOCTYPE html>
-<link href="SignUp.css" rel="stylesheet">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up</title>
+    <script src="/my-express-sql-app/public/signUp-Validation"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f5f5; /* Light background */
+        }
 
-<script>
-  const signUpCss = `
-      * {box-sizing: border-box;}
-      input[type=text], input[type=password] {
-          width: 100%;
-          padding: 15px;
-          margin: 5px 0 22px 0;
-          display: inline-block;
-          border: none;
-          background: #f1f1f1;
-      }
-      input[type=text]:focus, input[type=password]:focus {
-          background-color: #ddd;
-          outline: none;
-      }
-      hr {
-          border: 1px solid #f1f1f1;
-          margin-bottom: 25px;
-      }
-      button {
-          background-color: #04AA6D;
-          color: white;
-          padding: 14px 20px;
-          margin: 8px 0;
-          border: none;
-          cursor: pointer;
-          width: 100%;
-          opacity: 0.9;
-      }
-      button:hover {
-          opacity: 1;
-      }
-      .cancelbtn {
-          padding: 14px 20px;
-          background-color: #f44336;
-      }
-      .cancelbtn, .signupbtn {
-          float: left;
-          width: 50%;
-      }
-      .container {
-          padding: 16px;
-      }
-      .clearfix::after {
-          content: "";
-          clear: both;
-          display: table;
-      }
-      @media screen and (max-width: 300px) {
-          .cancelbtn, .signupbtn {
-              width: 100%;
-          }
-      }
-  `;
+        .signup-container {
+            width: 380px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
 
-  const style = document.createElement('style');
-  style.textContent = signUpCss;
-  document.head.appendChild(style);
-</script>
+        .signup-container h1 {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input[type="email"], input[type="text"], input[type="password"] {
+            width: 90%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background: #fafafa;
+            color: black;
+            font-size: 14px;
+        }
+
+        input::placeholder {
+            color: #888;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .signup-btn {
+            background-color: #0095f6;
+            color: white;
+            font-weight: bold;
+        }
+
+        .signup-btn:hover {
+            background-color: #0078d4;
+        }
+
+        .cancel-btn {
+            background-color: #dbdbdb;
+            color: black;
+        }
+
+        .cancel-btn:hover {
+            background-color: #bfbfbf;
+        }
+
+        a {
+            color: #0095f6;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="signup-container">
+        <h1>Cyber Defense</h1>
+        
+        <p style="color: #555;">Secure system for members of the public to access information.</p>
+        
+        <form action="/signup" method="POST" onsubmit="return validateForm()">
+            <input type="email"  placeholder="Email" name="email" required>
+            <input type="text" placeholder="Username" name="username" required>
+            <input type="password" placeholder="Password" name="password" required>
+            
+            <p style="font-size: 12px; color: #555;">
+                Have an account? <a href="/login">Log in</a>
+            </p>
+
+            <button type="submit" class="signup-btn">Sign Up</button>
+            <button type="button" class="cancel-btn">Cancel</button>
+        </form>
+    </div>
+
 </body>
 </html>
-
-<form action="/signup" method="POST" action = "signup">
-    <div class="container">
-      <h1>Sign Up</h1>
-      <p>Please fill in this form to create an account.</p>
-      <hr>
-  
-      <label for="username"><b>Username</b></label>
-      <input type="text" placeholder="Enter Username" name="username" required>
-  
-      <label for="password"><b>Password</b></label>
-      <input type="password" placeholder="Enter Password" name="password" required>
-  
-      <label>
-        <input type="checkbox" checked="checked" name="remember" style="margin-bottom:15px"> Remember me
-      </label>
-  
-      <p>By creating an account you agree to our <a href="#" style="color:dodgerblue">Terms & Privacy</a>.</p>
-  
-      <div class="clearfix">
-        <button type="button" class="cancelbtn">Cancel</button>
-        <button type="submit" class="signupbtn">Sign Up</button>
-      </div>
-    </div>
-  </form>
-
-  
