@@ -133,26 +133,7 @@
             </ul>
             <form action="/upgrade" method="POST">
               <input type="hidden" name="role" value="free">        
-              <button id="toggleButton" type="submit" class="w-100 btn btn-lg btn-outline-primary">Upgrade Status</button>
-              
-
-              <script>
-                document.getElementById("toggleButton").addEventListener("click", function() {
-                  const button = this;
-                  if (button.innerText === "Upgrade to Premium") {
-                    button.innerText = "Downgrade to Free";
-                    button.classList.remove("btn-primary");
-                    button.classList.add("btn-success");
-                    alert("Your account has been upgraded to Premium!");
-                  } else {
-                    button.innerText = "Upgrade to Premium";
-                    button.classList.remove("btn-success");
-                    button.classList.add("btn-primary");
-                    alert("Your account has been downgraded to Free.");
-                  }
-                });
-              </script>
-
+              <button type="submit" class="w-100 btn btn-lg btn-outline-primary">Upgrade Status</button>
             </form>
           </div>
         </div>
@@ -172,7 +153,6 @@
             </ul>
             <form action="/upgrade" method="POST">
               <input type="hidden" name="role" value="premium">
-
               <button id="upgradeButton" type="submit" class="w-100 btn btn-lg btn-primary">Upgrade Status</button>
               <script>
                 document.getElementById("upgradeButton").addEventListener("click", function() {
@@ -183,11 +163,10 @@
                     button.classList.add("btn-success");
                     alert("Your account has been upgraded to Premium!");
                   } else {
-                    alert("Your account has been upgraded to Premium!");
+                    alert("You already have a Premium account.");
                   }
                 });
               </script>
-
             </form>
           </div>
         </div>

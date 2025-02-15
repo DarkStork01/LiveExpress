@@ -58,11 +58,32 @@ function sanitizeInput(str) {
   return escapeHTML(str.trim());
 }
 
+// function logEvent(type, description) {
+//   const insertLogQuery = 'INSERT INTO logs (type, description) VALUES (?, ?)';
+//   db.query(insertLogQuery, [type, description], (err) => {
+//     if (err) {
+//     console.error('Error logging event:', err);
+//     }
+//   });
+// }
+
+function logEvent(type, description) {
+  // Format the current time as "YYYY-MM-DD HH:MM:SS" for MySQL
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  
+  const insertLogQuery = 'INSERT INTO logs (type, description, time) VALUES (?, ?, ?)';
+  db.query(insertLogQuery, [type, description, now], (err) => {
+    if (err) {
+      console.error('Error logging event:', err);
+    }
+  });
+}
+
 
 app.use(cookieParser()); // Enable cookie parsing middleware
 // Function to generate JWT token
 function generateToken(user) {
-  return jwt.sign({ username: user.username }, process.env.JWT_SECRET, {
+  return jwt.sign({ username: user.username, role: user.role }, process.env.JWT_SECRET, {
   expiresIn: process.env.JWT_EXPIRES_IN, // Token expires in 1 hour
   });
 };
@@ -91,8 +112,8 @@ app.post("/signup", signupLimiter, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10); // 10 is the salt rounds
 
     // Store the sanitized username and **hashed password**
-    const insertUserQuery = "INSERT INTO users (email, username, password) VALUES (?, ?, ?)";
-    db.query(insertUserQuery, [email, username, hashedPassword], (err, result) => {
+    const insertUserQuery = "INSERT INTO users (email, username, password, role) VALUES (?, ?, ?, ?)";
+    db.query(insertUserQuery, [email, username, hashedPassword, 'free'], (err, result) => {
     
       if (err) {
         console.error("Error inserting user:", err);
@@ -106,7 +127,7 @@ app.post("/signup", signupLimiter, async (req, res) => {
     console.error("Hashing error:", err);
     res.render("signup", { error: "Something went wrong. Try again." });
   }
-  
+  logEvent('Signup', `New user signed up: ${username}`);
 });
 
 
@@ -115,7 +136,7 @@ app.post('/login', (req, res) => {
 
   identifier = sanitizeInput(username || email);
   password = sanitizeInput(password);
-  
+
   const findUserQuery = 'SELECT * FROM users WHERE username = ? OR email = ?';
 
   db.query(findUserQuery, [ identifier, identifier], async (err, results) => {
@@ -137,6 +158,7 @@ app.post('/login', (req, res) => {
       return res.render("login", { error: "Invalid username/email or password." });
     }
       
+
     // Generate JWT token
     const token = generateToken(user);
       
@@ -149,11 +171,46 @@ app.post('/login', (req, res) => {
     console.log(`User logged in: ${username}`);
     // Redirect them to a "dashboard" page
     res.redirect('/dashboard');
+    logEvent('Login', `User logged in: ${username}`);
   });
 });
 
+app.post("/upgrade", authenticateToken, (req, res) => {
+  const { role } = req.body;  // role should be 'free' or 'premium'
+  
+  if (role !== "free" && role !== "premium") {
+    return res.render("upgrade", { 
+      error: "Invalid role selected", 
+      username: req.user.username 
+    });
+  }
+
+  const updateQuery = "UPDATE users SET role = ? WHERE username = ?";
+  db.query(updateQuery, [role, req.user.username], (err, result) => {
+    if (err) {
+      console.error("Error updating user role:", err);
+      return res.render("upgrade", { 
+        error: "Could not update role", 
+        username: req.user.username 
+      });
+    }
+    
+    logEvent("Role Change", `User ${req.user.username} changed role to ${role}`);
+    
+    res.render("upgrade", { 
+      message: `Your role has been updated to ${role}`, 
+      username: req.user.username 
+    });
+  });
+});
+
+
 app.get("/dashboard", authenticateToken, (req, res) => {
-  res.render("dashboard", { username: req.user.username }); 
+  res.render("dashboard", { username: req.user.username });
+});
+
+app.get("/upgrade", authenticateToken, (req, res) => {
+  res.render("upgrade", { username: req.user.username, role: req.user.role });
 });
 
 app.get("/logout", (req, res) => {
@@ -169,9 +226,9 @@ app.get('/login', (req,res) => {
     res.render('login');
 });
 
-app.get('/dashboard', (req,res) => {
-    res.render('dashboard');
-});
+
+
+
 
 // //Logic to start the server
 // app.listen(PORT, () =>{

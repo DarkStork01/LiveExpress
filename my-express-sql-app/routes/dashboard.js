@@ -1,0 +1,61 @@
+//Getting Data from signup method 1
+// app.post('/signup', (req, res) => {
+//     const { username, password } = req.body;
+
+//     if (!username || !password) {
+//         return res.render('signup', { error: 'Please fill in all fields.' });
+//     }
+
+//     const checkUserQuery = 'SELECT * FROM users WHERE username = ?';
+
+//     db.query(checkUserQuery, [username], (err, result) => {
+//         if (err) {
+//             console.error('Error checking user in database:', err);
+//             return res.render('signup', { error: 'Database error. Please try again.' });
+//         }
+
+//         // Check if user exists
+//         if (result.length > 0) {
+//             return res.render('signup', { error: 'Username already taken.' });
+//         }
+
+//         // Insert new user into the database
+//         const insertUserQuery = 'INSERT INTO users (username, password) VALUES (?, ?)';
+//         db.query(insertUserQuery, [username, password], (err, result) => {
+//             if (err) {
+//                 console.error('Error inserting user:', err);
+//                 return res.render('signup', { error: 'Could not sign up user. Please try again.' });
+//             }
+
+//             console.log(`User created: ${username}`);
+//             res.redirect('/login');
+//         });
+//     });
+// });
+
+
+
+
+
+
+// app.post('/login', (req, res) =>{
+    //     const { username, password} = req.body;
+    
+    //     const findUserQuery = 'SELECT * FROM users WHERE username = ? AND password = ?';
+    
+    //     db.query(findUserQuery, [username, password], (err, results) => {
+    //     if (err) {
+    //       console.error('Error retrieving user:', err);
+    //       return res.render('login', { error: 'Database error.' });
+    //     }
+    
+    //     // If results array is empty, it means credentials are invalid
+    //     if (results.length === 0) {
+    //       return res.render('login', { error: 'Invalid username or password.' });
+    //     }
+    
+    //     console.log('User logged in: ${username}');
+    //     res.redirect('/dashboard');
+    //     });
+    // });         
+    

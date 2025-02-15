@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upgrade to Premium</title>
+    <style>
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <p id="status">Current Role: <strong>Free</strong></p>
+    <button onclick="upgradeToPremium()">Upgrade to Premium</button>
+
+    <script>
+        function upgradeToPremium() {
+            let confirmation = confirm("Are you sure you want to upgrade to Premium?");
+            
+            if (confirmation) {
+                document.getElementById("status").innerHTML = "Current Role: <strong>Premium</strong>";
+                alert("Your account has been upgraded to Premium!");
+                
+                // Optionally, send a request to the server to update user status
+                fetch('/upgrade', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => console.log("Server Response:", data))
+                    .catch(error => console.error("Error:", error));
+            }
+        }
+    </script>
+
+</body>
+</html>
