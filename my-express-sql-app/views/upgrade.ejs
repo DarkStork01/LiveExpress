@@ -78,6 +78,18 @@
         -webkit-overflow-scrolling: touch;
       }
 
+
+      input[type="password"] {
+          width: 100%;
+          padding: 12px;
+          margin: 8px 0;
+          border: 1px solid #ccc;
+          border-radius: 5px;
+          background: #fafafa;
+          color: black;
+          font-size: 14px;
+      }
+
       .btn-bd-primary {
         --bd-violet-bg: #712cf9;
         --bd-violet-rgb: 112.520718, 44.062154, 249.437846;
@@ -109,6 +121,7 @@
     <link href="routes/pricing.css" rel="stylesheet">
   </head>
 <body>
+ 
 <div class="container py-2">
   <header>
     <div class="pricing-header p-3 pb-md-4 mx-auto text-center">
@@ -132,6 +145,7 @@
               <li>Help center access</li>
             </ul>
             <form action="/upgrade" method="POST">
+              <input type="password" placeholder="Secret Password" name="password" required>
               <input type="hidden" name="role" value="free">        
               <button id="toggleButton" type="submit" class="w-100 btn btn-lg btn-outline-primary">Upgrade Status</button>
               
@@ -152,7 +166,6 @@
                   }
                 });
               </script>
-
             </form>
           </div>
         </div>
@@ -171,6 +184,8 @@
               <li>Help center access</li>
             </ul>
             <form action="/upgrade" method="POST">
+        
+              <input type="password" placeholder="Secret Password" name="password" required>
               <input type="hidden" name="role" value="premium">
 
               <button id="upgradeButton" type="submit" class="w-100 btn btn-lg btn-primary">Upgrade Status</button>

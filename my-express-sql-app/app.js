@@ -17,7 +17,7 @@ const rateLimit = require("express-rate-limit");
 // Limit users to 5 signups per 15 minutes per IP
 const signupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 2, // Limit each IP to 5 signup attempts per windowMs
+  max: 5, // Limit each IP to 5 signup attempts per windowMs
   message: "Too many signup attempts from this IP, please try again later.",
   headers: true, // Send rate limit info in headers
 });
@@ -58,15 +58,6 @@ function sanitizeInput(str) {
   return escapeHTML(str.trim());
 }
 
-// function logEvent(type, description) {
-//   const insertLogQuery = 'INSERT INTO logs (type, description) VALUES (?, ?)';
-//   db.query(insertLogQuery, [type, description], (err) => {
-//     if (err) {
-//     console.error('Error logging event:', err);
-//     }
-//   });
-// }
-
 function logEvent(type, description) {
   // Format the current time as "YYYY-MM-DD HH:MM:SS" for MySQL
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -79,6 +70,19 @@ function logEvent(type, description) {
   });
 }
 
+
+function generatePremiumToken() {
+  const user = {
+    username: "premiumUser", // Change to an actual username from your database
+    role: "premium"
+  };
+
+  const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+  console.log("Generated Premium Token:", token);
+}
+
+generatePremiumToken();
 
 app.use(cookieParser()); // Enable cookie parsing middleware
 // Function to generate JWT token
@@ -127,6 +131,13 @@ app.post("/signup", signupLimiter, async (req, res) => {
     console.error("Hashing error:", err);
     res.render("signup", { error: "Something went wrong. Try again." });
   }
+
+  //Instead of verifying the password with bcrypt, check if it's equal to the universal password
+  // const universalPassword ='pwd';
+  // if (password != universalPassword) {
+  //   return res.status(401).send('Incorrect passwod')
+  // }
+
   logEvent('Signup', `New user signed up: ${username}`);
 });
 
@@ -177,13 +188,17 @@ app.post('/login', (req, res) => {
 
 app.post("/upgrade", authenticateToken, (req, res) => {
   const { role } = req.body;  // role should be 'free' or 'premium'
-  
+
   if (role !== "free" && role !== "premium") {
     return res.render("upgrade", { 
       error: "Invalid role selected", 
       username: req.user.username 
     });
   }
+  // const universalPassword ='pwd';
+  // if (password != universalPassword) {
+  //   return res.status(401).send('Incorrect passwod')
+  // }
 
   const updateQuery = "UPDATE users SET role = ? WHERE username = ?";
   db.query(updateQuery, [role, req.user.username], (err, result) => {
@@ -194,7 +209,18 @@ app.post("/upgrade", authenticateToken, (req, res) => {
         username: req.user.username 
       });
     }
-    
+
+    // Regenerate the JWT token with the updated role
+    const updatedUser = { username: req.user.username, role: role };
+    const newToken = generateToken(updatedUser);
+
+    // Set the new token in the cookie
+    res.cookie("token", newToken, {
+      httpOnly: true, // Prevents JavaScript from accessing the cookie
+      secure: false,  // Set `true` if using HTTPS
+      maxAge: 3600000, // 1 hour
+    });
+
     logEvent("Role Change", `User ${req.user.username} changed role to ${role}`);
     
     res.render("upgrade", { 
@@ -205,9 +231,33 @@ app.post("/upgrade", authenticateToken, (req, res) => {
 });
 
 
-app.get("/dashboard", authenticateToken, (req, res) => {
-  res.render("dashboard", { username: req.user.username });
+
+app.get('/download/secret', authenticateToken, (req, res) => {
+
+  if (req.user.role === 'premium') {
+
+    const filePath = path.join(__dirname,'/public/images/secret.pdf' );
+    res.download(filePath, 'Exclusive-Content.pdf', (err) => {
+  
+    if (err) {
+      console.error('Error sending file:', err);
+      res.status(500).send('Could not download the file.');
+    }
+  });
+  
+  } else {
+  res.status(403).send('Access denied: Premium members only.');
+  }  
+  //Premium Access
+  logEvent('Premium Access', `Premium resource accessed by: ${req.user.username}`);
 });
+
+
+
+app.get("/dashboard", authenticateToken, (req, res) => {
+  res.render("dashboard", { username: req.user.username, role: req.user.role });
+});
+
 
 app.get("/upgrade", authenticateToken, (req, res) => {
   res.render("upgrade", { username: req.user.username, role: req.user.role });
