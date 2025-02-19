@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Log in</title>
     <script src="/my-express-sql-app/public/signUp-Validation"></script>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <style>
         body {
             display: flex;
@@ -81,11 +82,31 @@
         <p style="color: #555;"></p>
         
         <form action="/login" method="POST" onsubmit="return validateForm()">
-            <input type="text" placeholder="Username" name="username" required>
+            <input type="text" placeholder="Username or Email" name="username" required>
             <input type="password" placeholder="Password" name="password" required>
             
             
+        <div class="g-recaptcha" data-sitekey="<%= process.env.RECAPTCHA_SITE_KEY %>"></div>
+        <br><br>
             
+        <script>
+            // Function to display messages
+            function showMessage(type, message) {
+            const messageContainer = document.getElementById("message-container");
+            messageContainer.innerHTML = `<div class="message ${type}">${message}</div>`;
+            }
+        
+            // Check if there are any messages passed from the server
+            let error = "<%= typeof error !== 'undefined' ? error : '' %>"; // Safely access error
+            let message = "<%= typeof message !== 'undefined' ? message : '' %>"; // Safely access message
+        
+            if (error) {
+            showMessage("error", error);
+            }
+            if (message) {
+            showMessage("success", message);
+            }
+        </script>
 
             <button type="submit" class="login-btn">Log in</button>
         </form>

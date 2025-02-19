@@ -1,97 +1,45 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log in</title>
-    <script src="/my-express-sql-app/public/signUp-Validation"></script>
-    <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f5f5f5; /* Light background */
+<script>
+    app.post('/login', (req, res) => {
+      let { email, username, password } = req.body;
+    
+      identifier = sanitizeInput(username || email);
+      password = sanitizeInput(password);
+    
+      const findUserQuery = 'SELECT * FROM users WHERE username = ? OR email = ?';
+    
+      db.query(findUserQuery, [ identifier, identifier], async (err, results) => {
+    
+        if (err) {
+          console.error('Error retrieving user:', err);
+          return res.render('login', { error: 'Database error.' });
         }
-
-        .login-container {
-            width: 380px;
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            font-family: Arial, sans-serif;
+    
+        // If results array is empty, it means credentials are invalid
+        if (results.length === 0) {
+          return res.render('login', { error: 'Invalid username/email or password.' });
         }
-
-        .login-container h1 {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 28px;
-            font-weight: bold;
-            color: #333;
+      
+        const user = results[0];
+        const isPasswordValid = await bcrypt.compare(password, user.password); // Compare password
+      
+        if (!isPasswordValid) {
+          return res.render("login", { error: "Invalid username/email or password." });
         }
-
-        input[type="text"], input[type="password"] {
-            width: 90%;
-            padding: 12px;
-            margin: 8px 0;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            background: #fafafa;
-            color: black;
-            font-size: 14px;
-        }
-
-        input::placeholder {
-            color: #888;
-        }
-
-        button {
-            width: 100%;
-            padding: 12px;
-            margin-top: 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .login-btn {
-            background-color: #0095f6;
-            color: white;
-            font-weight: bold;
-        }
-
-        .login-btn:hover {
-            background-color: #0078d4;
-        }
-
-        a {
-            color: #0095f6;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-    </style>
-</head>
-<body>
-
-    <div class="login-container">
-        <h1>Login</h1>
-        <p style="color: #555;"></p>
-        
-        <form action="/login" method="POST" onsubmit="return validateForm()">
-            <input type="text" placeholder="Username" name="username" required>
-            <input type="password" placeholder="Password" name="password" required>
-            
-            <p style="font-size: 12px; color: #555;">
-                Dont have an account? <a href="/signup">Sign up</a>
-            </p>
-            
-
-            <button type="submit" class="login-btn" width="1000">Log in</button>
-        </form>
-    </div>
-
-</body>
-</html>
+          
+    
+        // Generate JWT token
+        const token = generateToken(user);
+          
+        res.cookie("token", token, {
+          httpOnly: true, // Prevents JavaScript from accessing the cookie
+          secure: false,  // Set `true` if using HTTPS
+          maxAge: 3600000, // 1 hour
+        });
+        // Otherwise, login is successful
+        console.log(`User logged in: ${username}`);
+        // Redirect them to a "dashboard" page
+        res.redirect('/dashboard');
+        logEvent('Login', `User logged in: ${username}`);
+      });
+    });
+</script>
