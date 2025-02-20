@@ -1,23 +1,21 @@
 const jwt = require('jsonwebtoken');
 
-function authenticateToken(req, res, next) {
+const authenticateToken = (req, res, next) => {
   const token = req.cookies.token;
 
   if (!token) {
-    console.log("No token found."); // Debugging: Log missing token
-    return res.status(401).redirect('/login');
+    return res.redirect('/login');
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      console.log("Invalid token:", err); // Debugging: Log invalid token
-      return res.status(403).redirect('/login');
-    }
-
-    console.log("Token verified. User:", user); // Debugging: Log verified user
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
     req.user = user;
     next();
-  });
-}
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    res.clearCookie('token');
+    return res.redirect('/login');
+  }
+};
 
-module.exports = { authenticateToken }; 
+module.exports = { authenticateToken };

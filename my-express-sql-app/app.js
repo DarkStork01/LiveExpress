@@ -44,7 +44,59 @@ const options = {
 };
 
 
-const axios = require("axios"); ///!!!
+const axios = require("axios"); 
+
+const crypto = require('crypto');
+
+// Encryption key (store this securely in environment variables)
+const encryptionKey = process.env.ENCRYPTION_KEY || 'your-encryption-key-32-bytes-long'; // Must be 32 bytes for AES-256
+const algorithm = 'aes-256-cbc';
+
+// Function to encrypt data
+function encrypt(text) {
+  const iv = crypto.randomBytes(16); // Generate a random initialization vector
+  const cipher = crypto.createCipheriv(algorithm, Buffer.from(encryptionKey), iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return `${iv.toString('hex')}:${encrypted}`; // Return IV and encrypted data
+}
+
+// Function to decrypt data
+function decrypt(text) {
+  if (!text || !text.includes(':')) return text;
+  
+  try {
+    const [ivHex, encryptedData] = text.split(':');
+    
+    // Validate IV and encrypted data format
+    if (!ivHex || !encryptedData) {
+      return text;
+    }
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv(algorithm, encryptionKey, iv);
+    let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    // Silent error handling - just return original text
+    // Only log if it's not the common IV or decrypt errors
+    if (!error.code?.includes('ERR_CRYPTO_INVALID_IV') && 
+        !error.code?.includes('ERR_OSSL_BAD_DECRYPT')) {
+      console.error('Unexpected decryption error:', error);
+    }
+    return text;
+  }
+}
+
+// Optional: Add a debug version of decrypt for development
+function decryptWithLogging(text) {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Attempting to decrypt:', text);
+  }
+  return decrypt(text);
+}
+
 
 //Set our engine EJS
 app.set('view engine', 'ejs');
@@ -82,8 +134,6 @@ function generatePremiumToken() {
   };
 
   const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-  console.log("Generated Premium Token:", token);
 }
 
 generatePremiumToken();
@@ -121,10 +171,14 @@ app.post("/signup", signupLimiter, async (req, res) => {
     // **Hash the password before storing it**
     const hashedPassword = await bcrypt.hash(password, 10); // 10 is the salt rounds
 
-    // Store the sanitized username and **hashed password**
-    const insertUserQuery = "INSERT INTO users (email, username, password, role) VALUES (?, ?, ?, ?)";
+    // Encrypt sensitive data
+    const encryptedEmail = encrypt(email);
+    const encryptedUsername = encrypt(username);
+    const encryptedRole = encrypt('free'); // Default role is 'free'
 
-    db.query(insertUserQuery, [email, username, hashedPassword, 'free'], (err, result) => {
+    // Insert user into the database
+    const insertUserQuery = "INSERT INTO users (email, username, password, role) VALUES (?, ?, ?, ?)";
+    db.query(insertUserQuery, [encryptedEmail, encryptedUsername, hashedPassword, encryptedRole], (err, result) => {
       if (err) {
         console.error("Error inserting user:", err);
         return res.render("signup", { error: "Could not sign up user." });
@@ -132,17 +186,10 @@ app.post("/signup", signupLimiter, async (req, res) => {
       res.redirect("/login"); // Redirect after successful signup
     });
 
-    
   } catch (err) {
-    console.error("Hashing error:", err);
+    console.error("Error during signup:", err);
     res.render("signup", { error: "Something went wrong. Try again." });
   }
-
-  //Instead of verifying the password with bcrypt, check if it's equal to the universal password
-  // const universalPassword ='pwd';
-  // if (password != universalPassword) {
-  //   return res.status(401).send('Incorrect passwod')
-  // }
 
   logEvent('Signup', `New user signed up: ${username}`);
 });
@@ -155,124 +202,216 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-  let { username, email, password, 'g-recaptcha-response': recaptchaResponse } = req.body;
-
-  console.log("Login Request Body:", req.body); // Debugging: Log the request body
-
-  // Sanitize inputs
-  identifier = sanitizeInput(username || email || "");
-  sanitizedPassword = sanitizeInput(password || "");
-
-  console.log("Sanitized Identifier:", identifier); // Debugging: Log the sanitized email
-  console.log("Sanitized Password:", sanitizedPassword); // Debugging: Log the sanitized password
-
-  // Verify reCAPTCHA
-  const recaptchaSecretKey = process.env.RECAPTCHA_SECRET_KEY;
-  const recaptchaVerificationUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecretKey}&response=${recaptchaResponse}`;
-
   try {
-    console.log("Verifying CAPTCHA..."); // Debugging: Log CAPTCHA verification start
-    const recaptchaResult = await axios.post(recaptchaVerificationUrl);
-    console.log("CAPTCHA Verification Result:", recaptchaResult.data); // Debugging: Log CAPTCHA result
+    // Destructure and rename the recaptcha response from the request body
+    const { username, email, password, 'g-recaptcha-response': recaptchaToken } = req.body;
 
-    if (!recaptchaResult.data.success) {
-      console.log("CAPTCHA verification failed."); // Debugging: Log CAPTCHA failure
-      return res.render("login", { error: "CAPTCHA verification failed. Please try again.", message: null });
-    }
-  } catch (err) {
-    console.error("Error verifying CAPTCHA:", err); // Debugging: Log CAPTCHA error
-    return res.render("login", { error: "CAPTCHA verification failed. Please try again.", message: null });
-  }
+    
+    // console.log('Request body:', req.body);
+    // console.log('Recaptcha token:', recaptchaToken);
 
-  // Proceed with login if CAPTCHA is valid
-  const findUserQuery = 'SELECT * FROM users WHERE username = ? OR email = ?';
-  db.query(findUserQuery, [identifier, identifier], async (err, results) => {
-    if (err) {
-      console.error('Error retrieving user:', err); 
-      return res.render('login', { error: 'Database error.', message: null });
+    // Check if recaptcha token exists
+    if (!recaptchaToken) {
+      console.log('No CAPTCHA token provided');
+      return res.render('login', { 
+        error: 'Please complete the CAPTCHA verification.', 
+        message: null 
+      });
     }
 
-    if (results.length === 0) {
-      console.log("User not found."); 
-      return res.render('login', { error: 'Invalid email or password.', message: null });
+    // Verify reCAPTCHA
+    try {
+      const recaptchaVerification = await axios.post(
+        'https://www.google.com/recaptcha/api/siteverify',
+        null,
+        {
+          params: {
+            secret: process.env.RECAPTCHA_SECRET_KEY,
+            response: recaptchaToken
+          }
+        }
+      );
+
+      // console.log('CAPTCHA verification response:', recaptchaVerification.data);
+
+      if (!recaptchaVerification.data.success) {
+        return res.render('login', { 
+          error: 'CAPTCHA verification failed. Please try again.', 
+          message: null 
+        });
+      }
+    } catch (captchaError) {
+      console.error('CAPTCHA verification error:', captchaError);
+      return res.render('login', { 
+        error: 'Error verifying CAPTCHA. Please try again.', 
+        message: null 
+      });
     }
 
-    const user = results[0];
-    console.log("User found:", user); // Debugging: Log the retrieved user
+    // Proceed with login after CAPTCHA verification
+    const identifier = sanitizeInput(username || email || "");
+    const sanitizedPassword = sanitizeInput(password || "");
 
-    const isPasswordValid = await bcrypt.compare(sanitizedPassword, user.password);
-    console.log("Password valid:", isPasswordValid); // Debugging: Log password validation result
+    // Find user in database
+    const findUserQuery = 'SELECT * FROM users';
+    db.query(findUserQuery, [], async (err, results) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.render('login', { error: 'Database error.', message: null });
+      }
 
-    if (!isPasswordValid) {
-      console.log("Invalid password."); // Debugging: Log invalid password
-      return res.render("login", { error: "Invalid email or password.", message: null });
-    }
+      // Find user by decrypting and comparing values
+      let user = null;
+      for (const result of results) {
+        try {
+          const decryptedUsername = decrypt(result.username);
+          const decryptedEmail = decrypt(result.email);
+          
+          if (decryptedUsername === identifier || decryptedEmail === identifier) {
+            user = result;
+            break;
+          }
+        } catch (e) {
+          console.error('Decryption error during search:', e);
+          continue;
+        }
+      }
 
-    // Generate JWT token
-    const token = generateToken(user);
-    console.log("Generated Token:", token); // Debugging: Log the generated token
+      if (!user) {
+        return res.render('login', { error: 'Invalid credentials.', message: null });
+      }
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: false,
-      maxAge: 3600000,
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(sanitizedPassword, user.password);
+      if (!isPasswordValid) {
+        return res.render('login', { error: 'Invalid credentials.', message: null });
+      }
+
+      // Create token with decrypted data
+      const decryptedUser = {
+        username: decrypt(user.username),
+        role: decrypt(user.role)
+      };
+
+      const token = generateToken(decryptedUser);
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 3600000
+      });
+
+      logEvent('Login', `User logged in: ${decryptedUser.username}`);
+
+      return res.redirect('/dashboard');
     });
-
-    console.log(`User logged in: ${user.username}`); // Debugging: Log successful login
-    res.redirect('/dashboard');
-    logEvent('Login', `User logged in: ${user.username}`);
-  });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.render('login', { error: 'An error occurred during login.', message: null });
+  }
 });
 
 
 app.post("/upgrade", authenticateToken, (req, res) => {
-  const { role } = req.body; // Get the role from the form
-  console.log("Upgrade Request Body:", req.body); // Debugging: Log the request body
+  const { role } = req.body;
+  // console.log("Upgrade Request Body:", req.body);
 
-  // Verify the role
+  // Verify the role is valid
   if (role !== "free" && role !== "premium") {
-    console.log("Invalid role selected:", role); // Debugging: Log invalid role
     return res.render("upgrade", {
       error: "Invalid role selected.",
       username: req.user.username,
-      email: req.user.email,
       role: req.user.role,
+      message: null
     });
   }
 
-  // Update the user's role in the database
-  const updateQuery = "UPDATE users SET role = ? WHERE username = ?";
-  db.query(updateQuery, [role, req.user.username], (err, result) => {
+  // Find the user first
+  const findUserQuery = 'SELECT * FROM users';
+  db.query(findUserQuery, [], async (err, results) => {
     if (err) {
-      console.error("Error updating user role:", err); // Debugging: Log database error
+      console.error('Error finding user:', err);
       return res.render("upgrade", {
-        error: "Could not update role.",
+        error: "Database error.",
         username: req.user.username,
         role: req.user.role,
+        message: null
       });
     }
 
-    console.log("Role updated successfully:", result); // Debugging: Log successful update
+    // Find user by decrypting usernames
+    let user = null;
+    for (const result of results) {
+      try {
+        const decryptedUsername = decrypt(result.username);
+        if (decryptedUsername === req.user.username) {
+          user = result;
+          break;
+        }
+      } catch (e) {
+        console.error('Error decrypting username during search:', e);
+        continue;
+      }
+    }
 
-    // Regenerate the JWT token with the updated role
-    const updatedUser = { username: req.user.username, role: role };
-    const newToken = generateToken(updatedUser);
-    console.log("New Token Generated:", newToken); // Debugging: Log the new token
+    if (!user) {
+      return res.render("upgrade", {
+        error: "User not found.",
+        username: req.user.username,
+        role: req.user.role,
+        message: null
+      });
+    }
 
-    // Set the new token in the cookie
-    res.cookie("token", newToken, {
-      httpOnly: true,
-      secure: false,
-      maxAge: 3600000,
-    });
+    try {
+      // Encrypt the new role
+      const encryptedRole = encrypt(role);
 
-    logEvent("Role Change", `User ${req.user.username} changed role to ${role}.`);
+      // Update the user's role
+      const updateQuery = "UPDATE users SET role = ? WHERE id = ?";
+      db.query(updateQuery, [encryptedRole, user.id], (updateErr, result) => {
+        if (updateErr) {
+          console.error("Error updating user role:", updateErr);
+          return res.render("upgrade", {
+            error: "Could not update role.",
+            username: req.user.username,
+            role: req.user.role,
+            message: null
+          });
+        }
 
-    res.render("upgrade", {
-      message: `Your role has been updated to ${role}.`,
-      username: req.user.username,
-      role: role, // Pass the updated role to the template
-    });
+        // Generate new token with updated role
+        const updatedUser = { 
+          username: req.user.username, 
+          role: role 
+        };
+        const newToken = generateToken(updatedUser);
+
+        // Set the new token in the cookie
+        res.cookie("token", newToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 3600000
+        });
+
+        logEvent("Role Change", `User ${req.user.username} changed role to ${role}.`);
+
+        return res.render("upgrade", {
+          message: `Your role has been updated to ${role}.`,
+          username: req.user.username,
+          role: role,
+          error: null
+        });
+      });
+    } catch (error) {
+      console.error("Error during role update:", error);
+      return res.render("upgrade", {
+        error: "Error updating role.",
+        username: req.user.username,
+        role: req.user.role,
+        message: null
+      });
+    }
   });
 });
 
@@ -299,27 +438,81 @@ app.get('/download/secret', authenticateToken, (req, res) => {
 
 
 app.get('/dashboard', authenticateToken, (req, res) => {
-  const findUserQuery = 'SELECT id, username, email, role, created_at FROM users WHERE username = ?';
-  db.query(findUserQuery, [req.user.username], (err, results) => {
+  // Get all users and find the matching one after decryption
+  const findUserQuery = 'SELECT * FROM users';
+  db.query(findUserQuery, [], (err, results) => {
     if (err) {
-      console.error('Error retrieving user:', err);
-      return res.render('dashboard', { error: 'Database error.', username: req.user.username });
+      console.error('Error retrieving users:', err);
+      return res.render('dashboard', { 
+        error: 'Database error.', 
+        username: req.user.username,
+        role: 'unknown',
+        email: '',
+        userId: '',
+        createdAt: '',
+        message: null
+      });
     }
 
-    if (results.length === 0) {
-      return res.render('dashboard', { error: 'User not found.', username: req.user.username });
+    // Find user by decrypting usernames
+    let user = null;
+    for (const result of results) {
+      try {
+        const decryptedUsername = decrypt(result.username);
+        if (decryptedUsername === req.user.username) {
+          user = result;
+          break;
+        }
+      } catch (e) {
+        console.error('Error decrypting username during search:', e);
+        continue;
+      }
     }
 
-    const user = results[0];
-    console.log("User data:", user); // Debugging: Log the retrieved user data
+    if (!user) {
+      return res.render('dashboard', { 
+        error: 'User not found.', 
+        username: req.user.username,
+        role: 'unknown',
+        email: '',
+        userId: '',
+        createdAt: '',
+        message: null
+      });
+    }
 
-    res.render('dashboard', {
-      username: user.username,
-      role: user.role,
-      userId: user.id,
-      email: user.email,
-      createdAt: user.created_at, // Assuming your database has a `created_at` field
-    });
+    try {
+      // Decrypt user data
+      const decryptedUser = {
+        id: user.id,
+        username: decrypt(user.username),
+        email: decrypt(user.email),
+        role: decrypt(user.role),
+        created_at: user.created_at
+      };
+
+      return res.render('dashboard', {
+        username: decryptedUser.username,
+        role: decryptedUser.role,
+        userId: decryptedUser.id,
+        email: decryptedUser.email,
+        createdAt: decryptedUser.created_at,
+        error: null,
+        message: null
+      });
+
+    } catch (error) {
+      console.error('Error processing user data:', error);
+      return res.render('dashboard', { 
+        error: 'Error loading user data', 
+        username: req.user.username,
+        role: 'unknown',
+        email: '',
+        userId: '',
+        createdAt: '',
+        message: null
+      });
+    }
   });
 });
 
@@ -339,14 +532,9 @@ app.get('/signup', (req, res) =>{
 
 
 
-
-
-
-
-
-
 https.createServer(options, app).listen(PORT, () => {
   console.log('HTTPS Server running on https://localhost:' + PORT);
-  console.log("Serving static files from: ${path.joiqn(__dirname, 'public')}");
-  });
+  console.log(`Serving static files from: ${path.join(__dirname, 'public')}`);
+
+});
 
